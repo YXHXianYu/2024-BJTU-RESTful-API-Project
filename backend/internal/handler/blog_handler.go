@@ -4,7 +4,10 @@ import (
 	"net/http"
 	"restfulapi/internal/auth"
 	"restfulapi/internal/model"
+<<<<<<< HEAD
 	"strings"
+=======
+>>>>>>> 21de4b8415dfe06201b4e0052e7c443b0dae38a8
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -40,6 +43,7 @@ func CreateBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 		blog.CreatedUserID = user.(model.UserSimplified).ID
 		// 3. save data
 		if err := db.Create(&blog).Error; err != nil {
+<<<<<<< HEAD
 			if strings.Contains(err.Error(), "Duplicate entry") {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"code": http.StatusBadRequest,
@@ -48,6 +52,8 @@ func CreateBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 				return
 			}
 
+=======
+>>>>>>> 21de4b8415dfe06201b4e0052e7c443b0dae38a8
 			c.JSON(http.StatusBadRequest, gin.H{
 				"code": http.StatusBadRequest,
 				"message": err.Error(),

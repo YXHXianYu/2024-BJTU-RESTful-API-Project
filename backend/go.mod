@@ -4,10 +4,15 @@ go 1.22.2
 
 require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+<<<<<<< HEAD
 	github.com/gin-contrib/cors v1.7.1
 	github.com/gin-gonic/gin v1.9.1
 	github.com/mikespook/gorbac/v3 v3.0.0-20230110214656-17f7b949ba43
 	github.com/stretchr/testify v1.9.0
+=======
+	github.com/gin-gonic/gin v1.9.1
+	github.com/mikespook/gorbac/v3 v3.0.0-20230110214656-17f7b949ba43
+>>>>>>> 21de4b8415dfe06201b4e0052e7c443b0dae38a8
 	golang.org/x/crypto v0.22.0
 	gorm.io/driver/mysql v1.5.6
 	gorm.io/gorm v1.25.10
