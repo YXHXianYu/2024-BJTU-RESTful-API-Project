@@ -1,7 +1,6 @@
 import Vue from 'vue'
 import App from './App.vue'
 import ElementUI from 'element-ui';
-import store from './store'
 import router from './router'
 import './theme/index.css';
 import axios from 'axios';
@@ -18,7 +17,6 @@ Vue.prototype.$url = Vue.prototype.$server +  ":8080";
 Vue.prototype.$salt = "QYXTQL%%%%%11231LDLJHHAHSACOASJCPJASODPP:LNKJDAS@123123qwe123dfaf513234";
 
 new Vue({
-  store,
   router,
   render: h => h(App),
 
