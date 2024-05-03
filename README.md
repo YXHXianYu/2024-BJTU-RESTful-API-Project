@@ -33,6 +33,8 @@
       - [5.1.1 前端](#511-前端)
       - [5.1.2 后端](#512-后端)
     - [5.2 后端的集成测试实现](#52-后端的集成测试实现)
+      - [5.2.1 Controller Layer测试](#521-controller-layer测试)
+      - [5.2.2 Service Layer测试](#522-service-layer测试)
     - [5.3 测试报告](#53-测试报告)
       - [5.3.1 自动测试结果](#531-自动测试结果)
       - [5.3.2 手动测试结果](#532-手动测试结果)
@@ -94,13 +96,11 @@
     * 【完成】用户登录成功后的内容主页，主页需通过 rest api 调用后台资源，显示内容题目， 文字内容和图像内容。内容访问需设权限控制。
       * 网站会通过RESTfulAPI调用后端资源，显示内容题目、文字内容。
       * 内容访问也受到了上文描述一致的权限控制。
-  
 * 作业4
   * 【均完成】前端
     * 当后台服务未开启或连接失败时，系统是否提示用户稍后再试。
     * 当系统已登录状态，后台服务中断，系统是否尝试多次连接，time-out 后退出登录状态。
     * 系统针对 axios 返回结果，正确提示用户。
-  
   * 【均完成】后端
     * service layer 是否能够 捕捉 dao 数据库操作的异常，处理异常，写入 log，向 controller layer 传递适合的错误信息。保证 service layer 不会将系统 exception 信息传递到 controller。
     * service layer 正常运行的测试
@@ -556,192 +556,236 @@
 
 ### 5.2 后端的集成测试实现
 
-* 我使用Go语言原生的testing框架进行测试
+* 我使用Go语言原生的testing框架进行测试，代码位于 `./internal/test/integration_test.go`
 
-* 如下是我的测试代码和测试用例
+#### 5.2.1 Controller Layer测试
 
-  ```go
-  func TestUser(t *testing.T) {
-  	r := utils.Setup()
-  
-  	// === User ===
-  
-  	{ // get user (unauthorized)
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusUnauthorized, w.Code)
-  	}
-  
-  	var token string
-  
-  	{ // login
-  		req, _ := http.NewRequest(http.MethodPost, "/api/v1/sessions", ConvertToBytes(
-  			struct {
-  				Username string `json:"username"`
-  				Password string `json:"password"`
-  			} {
-  				Username: "admin",
-  				Password: "20021012",
-  			},
-  		))
-  		req.Header.Set("Content-Type", "application/json")
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusOK, w.Code)
-  
-  		data := ConvertToMap(w.Body.String())
-  		token = data["data"].(map[string]interface{})["token"].(string)
-  		t.Log("token: " + token)
-  	}
-  
-  	{ // get user
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
-  		req.Header.Set("Authorization", token)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusOK, w.Code)
-  		
-  		data := ConvertToMap(w.Body.String())
-  		assert.Equal(t, "admin", data["data"].(map[string]interface{})["username"])
-  		assert.Equal(t, "admin", data["data"].(map[string]interface{})["role"])
-  		assert.Equal(t, float64(16), data["data"].(map[string]interface{})["id"])
-  	}
-  	{ // get user (unauthorized)
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusUnauthorized, w.Code)
-  	}
-  	{ // get all users
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users", nil)
-  		req.Header.Set("Authorization", token)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusOK, w.Code)
-  	}
-  	{ // create user (bad request)
-  		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users", ConvertToBytes(
-  			struct {
-  				Username string `json:"username"`
-  				Password string `json:"password"`
-  				Email string `json:"email"`
-  				Telephone string `json:"telephone"`
-  			} {
-  				Username: "admin",
-  				Password: "20021012",
-  				Email: "2943003@qq.com",
-  				Telephone: "1234567890",
-  			},
-  		))
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusBadRequest, w.Code)
-  	}
-  	{ // create user (bad request)
-  		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users", ConvertToBytes(
-  			struct {
-  				Username string `json:"username"`
-  				Password string `json:"password"`
-  				Email string `json:"email"`
-  				Telephone string `json:"telephone"`
-  			} {
-  				Username: "fields_not_complete",
-  				Password: "20021012",
-  			},
-  		))
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusBadRequest, w.Code)
-  	}
-  
-  	// === Blog ===
-  
-  	{ // create blog (unauthorized)
-  		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
-  			struct {
-  				Title string `json:"title"`
-  				Content string `json:"content"`
-  			} {
-  				Title: "title",
-  				Content: "content",
-  			},
-  		))
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusUnauthorized, w.Code)
-  	}
-  	{ // create blog (bad request)
-  		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
-  			struct {
-  				Title string `json:"title"`
-  				Content string `json:"content"`
-  			} {
-  				Title: "title",
-  				Content: "content",
-  			},
-  		))
-  		req.Header.Set("Authorization", token)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusBadRequest, w.Code)
-  	}
-  	{ // create blog (bad request (fields not complete))
-  		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
-  			struct {
-  				Title string `json:"title"`
-  				Content string `json:"content"`
-  			} {
-  				Title: "title",
-  			},
-  		))
-  		req.Header.Set("Authorization", token)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusBadRequest, w.Code)
-  	}
-  	{ // get blog (unauthorized)
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/blogs/1", nil)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusUnauthorized, w.Code)
-  	}
-  	{ // get blog
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/blogs/1", nil)
-  		req.Header.Set("Authorization", token)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusOK, w.Code)
-  	}
-  	{ // get all blogs
-  		req, _ := http.NewRequest(http.MethodGet, "/api/v1/blogs", nil)
-  		req.Header.Set("Authorization", token)
-  		w := httptest.NewRecorder()
-  		r.ServeHTTP(w, req)
-  
-  		assert.Equal(t, http.StatusOK, w.Code)
-  	}
-  }
-  ```
+```go
+func TestControllerLayer(t *testing.T) {
+	r := utils.Setup()
+	// === User ===
+	{ // get user (unauthorized)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+	var token string
+	{ // login
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/sessions", ConvertToBytes(
+			struct {
+				Username string `json:"username"`
+				Password string `json:"password"`
+			} {
+				Username: "admin",
+				Password: "20021012",
+			},
+		))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		data := ConvertToMap(w.Body.String())
+		token = data["data"].(map[string]interface{})["token"].(string)
+		t.Log("token: " + token)
+	}
+	{ // get user
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
+		req.Header.Set("Authorization", token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		
+		data := ConvertToMap(w.Body.String())
+		assert.Equal(t, "admin", data["data"].(map[string]interface{})["username"])
+		assert.Equal(t, "admin", data["data"].(map[string]interface{})["role"])
+		assert.Equal(t, float64(16), data["data"].(map[string]interface{})["id"])
+	}
+	{ // get user (unauthorized)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+	{ // get all users
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users", nil)
+		req.Header.Set("Authorization", token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
+	{ // create user (bad request)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users", ConvertToBytes(
+			struct {
+				Username string `json:"username"`
+				Password string `json:"password"`
+				Email string `json:"email"`
+				Telephone string `json:"telephone"`
+			} {
+				Username: "admin",
+				Password: "20021012",
+				Email: "2943003@qq.com",
+				Telephone: "1234567890",
+			},
+		))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+	{ // create user (bad request)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/users", ConvertToBytes(
+			struct {
+				Username string `json:"username"`
+				Password string `json:"password"`
+				Email string `json:"email"`
+				Telephone string `json:"telephone"`
+			} {
+				Username: "fields_not_complete",
+				Password: "20021012",
+			},
+		))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+	// === Blog ===
+	{ // create blog (unauthorized)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
+			struct {
+				Title string `json:"title"`
+				Content string `json:"content"`
+			} {
+				Title: "title",
+				Content: "content",
+			},
+		))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+	{ // create blog (bad request)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
+			struct {
+				Title string `json:"title"`
+				Content string `json:"content"`
+			} {
+				Title: "title",
+				Content: "content",
+			},
+		))
+		req.Header.Set("Authorization", token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+	{ // create blog (bad request (fields not complete))
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
+			struct {
+				Title string `json:"title"`
+				Content string `json:"content"`
+			} {
+				Title: "title",
+			},
+		))
+		req.Header.Set("Authorization", token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+	{ // get blog (unauthorized)
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/blogs/1", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+	{ // get blog
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/blogs/1", nil)
+		req.Header.Set("Authorization", token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
+	{ // get all blogs
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/blogs", nil)
+		req.Header.Set("Authorization", token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
+}
+```
+
+#### 5.2.2 Service Layer测试
+
+```go
+func TestServiceLayer(t *testing.T) {
+	db := utils.SetupDB()
+	// === User ===
+	{
+		_, err := service.GetUser(db, "16")
+		assert.Empty(t, err)
+	}
+	{
+		_, err := service.GetUser(db, "999a")
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	{
+		_, err := service.GetAllUsers(db)
+		assert.Empty(t, err)
+	}
+	{
+		err := service.CreateUser(db, model.User{
+			Username: "test",
+		})
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	// === Blog ===
+	{
+		err := service.CreateBlog(db, model.Blog{
+			Title: "title",
+		})
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	{
+		_, err := service.GetBlog(db, "1")
+		assert.Empty(t, err)
+	}
+	{
+		_, err := service.GetBlog(db, "999a")
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	{
+		_, err := service.GetAllBlogs(db)
+		assert.Empty(t, err)
+	}
+}
+```
 
 ### 5.3 测试报告
 
 #### 5.3.1 自动测试结果
 
 * 经过长时间的bug，终于全部测试通过
-* ![image-20240430010854475](./README/image-20240430010854475.png)
+  * ![image-20240503232506054](./README/image-20240503232506054.png)
+
 * 后端-1
   - **测试目标：** 确保 Service Layer 能够捕捉 DAO 数据库操作的异常，并处理异常，将适当的错误信息传递给 Controller Layer，同时确保不会将系统异常信息传递到 Controller Layer。
   - **成功完成**，如果数据库发生了：**主键冲突**、**数据不完整**，那么都会提示对应的信息，而不会吧异常信息传到controller layer。

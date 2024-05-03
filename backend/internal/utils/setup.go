@@ -12,10 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func Setup() *gin.Engine {
-	r := gin.Default()
-	r.Use(cors.New(config.GetCorsConfig()))
-
+func SetupDB() *gorm.DB {
 	dsn := config.GetDSN()
     db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
     if err != nil {
@@ -24,6 +21,15 @@ func Setup() *gin.Engine {
 
     db.AutoMigrate(&model.User{})
 	db.AutoMigrate(&model.Blog{})
+
+	return db
+}
+
+func Setup() *gin.Engine {
+	r := gin.Default()
+	r.Use(cors.New(config.GetCorsConfig()))
+
+	db := SetupDB()
 
 	auth.InitializeRBAC()
 

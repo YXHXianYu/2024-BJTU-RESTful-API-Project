@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"restfulapi/internal/auth"
 	"restfulapi/internal/model"
+	"restfulapi/internal/service"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +40,9 @@ func CreateBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 		user, _ := c.Get("user")
 		blog.CreatedUserID = user.(model.UserSimplified).ID
 		// 3. save data
-		if err := db.Create(&blog).Error; err != nil {
+		err := service.CreateBlog(db, blog)
+
+		if err != nil {
 			if strings.Contains(err.Error(), "Duplicate entry") {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"code": http.StatusBadRequest,
@@ -68,8 +71,8 @@ func GetBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 		// 1. get data
 		id := c.Param("id")
 		// 2. check data
-		var blog model.Blog
-		if err := db.First(&blog, id).Error; err != nil {
+		blog, err := service.GetBlog(db, id)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"code": http.StatusNotFound,
 				"message": "Blog not found",
@@ -87,11 +90,14 @@ func GetBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 
 func GetAllBlogs(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. get data
-		var blogs []model.Blog
-		// 2. check data
-		db.Find(&blogs)
-		// 3. return data
+		blogs, err := service.GetAllBlogs(db)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code": http.StatusNotFound,
+				"message": "Blogs not found",
+			})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"code": http.StatusOK,
 			"message": "Blogs found successfully!",
@@ -104,16 +110,15 @@ func UpdateBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 1. get data
 		id := c.Param("id")
-		var blog model.Blog
-		// 2. check data
-		if err := db.First(&blog, id).Error; err != nil {
+		blog, err := service.GetBlog(db, id)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"code": http.StatusNotFound,
 				"message": "Blog not found",
 			})
 			return
 		}
-		// 3. authenticate
+		// 2. authenticate
 		userInterface, _ := c.Get("user")
 		user := userInterface.(model.UserSimplified)
 		if user.Role != "admin" && user.ID != blog.CreatedUserID {
@@ -132,16 +137,16 @@ func UpdateBlog(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 			})
 			return
 		}
-		if newBlog.Title != "" { blog.Title = newBlog.Title }
-		if newBlog.Content != "" { blog.Content = newBlog.Content }
-		if err := db.Save(&blog).Error; err != nil {
+
+		err = service.UpdateBlog(db, id, newBlog.Title, newBlog.Content)
+		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"code": http.StatusBadRequest,
 				"message": err.Error(),
 			})
 			return
 		}
-		// 4. return data
+
 		c.JSON(http.StatusOK, gin.H{
 			"code": http.StatusOK,
 			"message": "Blog updated successfully!",

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"restfulapi/internal/auth"
 	"restfulapi/internal/model"
+	"restfulapi/internal/service"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -46,7 +47,8 @@ func CreateUser(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		// 保存到数据库
-        if err := db.Create(&newUser).Error; err != nil {
+		err := service.CreateUser(db, newUser)
+        if err != nil {
 			if strings.Contains(err.Error(), "Duplicate entry") {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"code": http.StatusBadRequest,
@@ -72,17 +74,14 @@ func CreateUser(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 
 func GetUser(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-        var targetUser model.User
-		{
-			id := c.Param("id")
-			result := db.First(&targetUser, id)
-			if result.Error != nil {
-				c.JSON(http.StatusNotFound, gin.H{
-					"code": http.StatusNotFound,
-					"message": "User not found",
-				})
-				return
-			}
+		id := c.Param("id")
+		targetUser, err := service.GetUser(db, id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code": http.StatusNotFound,
+				"message": "User not found",
+			})
+			return
 		}
 
 		userInterface, _ := c.Get("user")
@@ -105,8 +104,14 @@ func GetUser(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 
 func GetAllUsers(r *gin.Engine, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var users []model.User
-		db.Find(&users)
+		users, err := service.GetAllUsers(db)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code": http.StatusNotFound,
+				"message": "Users not found",
+			})
+			return
+		}
 
 		var usersResponse []model.UserSimplified
 		for _, user := range users {

@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"restfulapi/internal/model"
+	"restfulapi/internal/service"
 	"restfulapi/internal/utils"
 )
 
@@ -29,11 +31,9 @@ func ConvertToMap(jsonStr string) map[string]interface{} {
 	return data
 }
 
-func TestUser(t *testing.T) {
+func TestControllerLayer(t *testing.T) {
 	r := utils.Setup()
-
 	// === User ===
-
 	{ // get user (unauthorized)
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
 		w := httptest.NewRecorder()
@@ -41,9 +41,7 @@ func TestUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	}
-
 	var token string
-
 	{ // login
 		req, _ := http.NewRequest(http.MethodPost, "/api/v1/sessions", ConvertToBytes(
 			struct {
@@ -64,7 +62,6 @@ func TestUser(t *testing.T) {
 		token = data["data"].(map[string]interface{})["token"].(string)
 		t.Log("token: " + token)
 	}
-
 	{ // get user
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/users/16", nil)
 		req.Header.Set("Authorization", token)
@@ -129,9 +126,7 @@ func TestUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	}
-
 	// === Blog ===
-
 	{ // create blog (unauthorized)
 		req, _ := http.NewRequest(http.MethodPost, "/api/v1/blogs", ConvertToBytes(
 			struct {
@@ -200,5 +195,51 @@ func TestUser(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	}
+}
+
+func TestServiceLayer(t *testing.T) {
+	db := utils.SetupDB()
+	// === User ===
+	{
+		_, err := service.GetUser(db, "16")
+		assert.Empty(t, err)
+	}
+	{
+		_, err := service.GetUser(db, "999a")
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	{
+		_, err := service.GetAllUsers(db)
+		assert.Empty(t, err)
+	}
+	{
+		err := service.CreateUser(db, model.User{
+			Username: "test",
+		})
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	// === Blog ===
+	{
+		err := service.CreateBlog(db, model.Blog{
+			Title: "title",
+		})
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	{
+		_, err := service.GetBlog(db, "1")
+		assert.Empty(t, err)
+	}
+	{
+		_, err := service.GetBlog(db, "999a")
+		assert.NotEmpty(t, err)
+		if err != nil { t.Log(err) }
+	}
+	{
+		_, err := service.GetAllBlogs(db)
+		assert.Empty(t, err)
 	}
 }
